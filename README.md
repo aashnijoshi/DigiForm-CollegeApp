@@ -20,4 +20,4 @@ By utilizing various information formats such as text, speech, and images, DigiF
 <br>
 
 ## Demo Video
-![](demo_vid/CADD.mp4)
+![](https://github.com/aashnijoshi/DigiForm-Aashni/blob/main/demo_vid/CADD.mp4)
