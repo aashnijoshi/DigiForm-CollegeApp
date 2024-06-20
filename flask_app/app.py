@@ -19,7 +19,6 @@ class Registration(db.Model):
     fullName = db.Column(db.String(100), nullable=False)
     phoneNumber = db.Column(db.String(10), nullable=False)
     emailId = db.Column(db.String(120), nullable=False)
-    organization = db.Column(db.String(100), nullable=False)
 
 
 @app.route("/")
@@ -37,13 +36,11 @@ def digiform():
     fullName = request.form["fullName"]
     phoneNumber = request.form["phoneNumber"]
     emailId = request.form["emailId"]
-    organization = request.form["organization"]
 
     registration = Registration(
         fullName=fullName,
         phoneNumber=phoneNumber,
         emailId=emailId,
-        organization=organization,
     )
     db.session.add(registration)
     db.session.commit()
