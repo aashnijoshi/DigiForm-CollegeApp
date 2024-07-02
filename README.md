@@ -20,4 +20,7 @@ By utilizing various information formats such as text, speech, and images, DigiF
 <br>
 
 ## Demo Video
-https://github.com/aashnijoshi/DigiForm-Aashni/assets/41504377/a650f26f-c584-475d-9625-c09d530e12a5
+
+https://github.com/aashnijoshi/DigiForm-Aashni/assets/41504377/c89d546f-fdfc-4237-a205-6232e2d3b5a3
+
+
