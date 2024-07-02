@@ -1,0 +1,205 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>DigiForm - Document Upload</title>
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap@5.1.3/dist/css/bootstrap.min.css">
+    <style>
+        body {
+            background-color: #0b0f19;
+            color: #ddd;
+        }
+
+        .navbar,
+        .card {
+            background-color: #1d2333 !important;
+        }
+
+        .form-control {
+            background-color: #2c3549;
+            color: #ddd;
+            border: none;
+        }
+
+        .form-control:focus {
+            background-color: #3c4559;
+            color: #fff;
+            box-shadow: none;
+        }
+
+        #pdfEmbed {
+            width: 100%;
+            height: 600px;
+            border: none;
+        }
+
+        .btn-primary,
+        .btn-success {
+            background-color: #3498db;
+            border-color: #3498db;
+        }
+
+        .btn-primary:hover,
+        .btn-success:hover {
+            background-color: #2980b9;
+            border-color: #2980b9;
+        }
+
+        .image-preview {
+            max-width: 100%;
+            max-height: 200px;
+            margin-top: 10px;
+        }
+
+        #loadingOverlay {
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background-color: rgba(0, 0, 0, 0.5);
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            z-index: 1000;
+        }
+
+        .spinner-border {
+            width: 3rem;
+            height: 3rem;
+        }
+    </style>
+</head>
+
+<body class="d-flex flex-column min-vh-100">
+    <nav class="navbar navbar-expand-lg navbar-dark">
+        <div class="container">
+            <a class="navbar-brand" href="#">DigiForm</a>
+        </div>
+    </nav>
+
+    <main class="flex-grow-1 py-4">
+        <div class="container">
+            <h1 class="text-center mb-4">Document Upload and Results</h1>
+
+            <div class="row">
+                <div class="col-md-12 mb-3">
+                    <div class="card">
+                        <div class="card-body">
+                            <form id="uploadForm" action="{{ url_for('upload_form') }}" method="post"
+                                enctype="multipart/form-data">
+                                <div class="row">
+                                    <div class="col-md-4 mb-3">
+                                        <label for="identityDocument" class="form-label">Identity Document</label>
+                                        <input class="form-control" type="file" id="identityDocument"
+                                            name="identityDocument" accept="image/*" required>
+                                        <img id="identityPreview" class="image-preview" src="#"
+                                            alt="Identity Document Preview" style="display:none;">
+                                    </div>
+                                    <div class="col-md-4 mb-3">
+                                        <label for="tenthMarksheet" class="form-label">10th Marksheet</label>
+                                        <input class="form-control" type="file" id="tenthMarksheet"
+                                            name="tenthMarksheet" accept="image/*" required>
+                                        <img id="tenthPreview" class="image-preview" src="#"
+                                            alt="10th Marksheet Preview" style="display:none;">
+                                    </div>
+                                    <div class="col-md-4 mb-3">
+                                        <label for="twelfthMarksheet" class="form-label">12th Marksheet</label>
+                                        <input class="form-control" type="file" id="twelfthMarksheet"
+                                            name="twelfthMarksheet" accept="image/*" required>
+                                        <img id="twelfthPreview" class="image-preview" src="#"
+                                            alt="12th Marksheet Preview" style="display:none;">
+                                    </div>
+                                </div>
+                                <div class="text-center">
+                                    <button type="submit" class="btn btn-primary">Upload and Process</button>
+                                </div>
+                            </form>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            {% if pdf_data %}
+            <div class="row mt-4">
+                <div class="col-md-12">
+                    <h2 class="text-center mb-3">PDF Preview</h2>
+                    <div class="card">
+                        <div class="card-body">
+                            <iframe id="pdfEmbed" src="data:application/pdf;base64,{{ pdf_data }}"></iframe>
+                            <form action="{{ url_for('download_pdf') }}" method="post" class="mt-3 text-center">
+                                <input type="hidden" name="pdf_data" value="{{ pdf_data }}">
+                                <button type="submit" class="btn btn-success">Download PDF</button>
+                            </form>
+                        </div>
+                    </div>
+                </div>
+            </div>
+            {% else %}
+            <div class="row mt-4">
+                <div class="col-md-12">
+                    <div class="alert alert-info" role="alert">
+                        Upload your documents to generate a PDF with extracted information. You'll be able to preview
+                        and download the PDF after processing.
+                    </div>
+                </div>
+            </div>
+            {% endif %}
+        </div>
+    </main>
+
+    <footer class="bg-dark py-3 mt-auto">
+        <div class="container">
+            <p class="text-center mb-0">&copy; 2023 DigiForm. All rights reserved.</p>
+        </div>
+    </footer>
+
+    <div id="loadingOverlay" style="display: none;">
+        <div class="spinner-border text-light" role="status">
+            <span class="visually-hidden">Loading...</span>
+        </div>
+    </div>
+
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.1.3/dist/js/bootstrap.bundle.min.js"></script>
+    <script>
+        document.addEventListener('DOMContentLoaded', function () {
+            function previewImage(input, previewId) {
+                const preview = document.getElementById(previewId);
+                const file = input.files[0];
+                const reader = new FileReader();
+
+                reader.onloadend = function () {
+                    preview.src = reader.result;
+                    preview.style.display = 'block';
+                }
+
+                if (file) {
+                    reader.readAsDataURL(file);
+                } else {
+                    preview.src = "";
+                    preview.style.display = 'none';
+                }
+            }
+
+            document.getElementById('identityDocument').addEventListener('change', function () {
+                previewImage(this, 'identityPreview');
+            });
+
+            document.getElementById('tenthMarksheet').addEventListener('change', function () {
+                previewImage(this, 'tenthPreview');
+            });
+
+            document.getElementById('twelfthMarksheet').addEventListener('change', function () {
+                previewImage(this, 'twelfthPreview');
+            });
+
+            document.getElementById('uploadForm').addEventListener('submit', function () {
+                document.getElementById('loadingOverlay').style.display = 'flex';
+            });
+        });
+    </script>
+</body>
+
+</html>
