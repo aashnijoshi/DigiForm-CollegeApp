@@ -3,16 +3,7 @@ import json
 import os
 from io import BytesIO
 
-import pandas as pd
-from flask import (
-    Flask,
-    make_response,
-    redirect,
-    render_template,
-    request,
-    send_file,
-    url_for,
-)
+from flask import Flask, make_response, redirect, render_template, request, url_for
 from flask_sqlalchemy import SQLAlchemy
 from openai import OpenAI
 from reportlab.lib import colors
