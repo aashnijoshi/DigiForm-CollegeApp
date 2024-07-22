@@ -1,0 +1,10 @@
+Flask
+Flask-SQLAlchemy
+psycopg2-binary
+Flask-Limiter
+Flask-Caching
+redis
+openai
+reportlab
+python-dotenv
+gunicorn

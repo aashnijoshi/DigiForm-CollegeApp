@@ -2,6 +2,7 @@ import base64
 import json
 import os
 from io import BytesIO
+import hashlib
 
 from flask import Flask, make_response, redirect, render_template, request, url_for
 from flask_sqlalchemy import SQLAlchemy
@@ -12,21 +13,37 @@ from reportlab.lib.styles import ParagraphStyle, getSampleStyleSheet
 from reportlab.lib.units import inch
 from reportlab.platypus import Paragraph, SimpleDocTemplate, Spacer, Table, TableStyle
 from werkzeug.utils import secure_filename
+from flask_limiter import Limiter
+from flask_limiter.util import get_remote_address
+from flask_caching import Cache
+from dotenv import load_dotenv
+
+load_dotenv()
 
 app = Flask(__name__)
 basedir = os.path.abspath(os.path.dirname(__file__))
-app.config["SQLALCHEMY_DATABASE_URI"] = "sqlite:///" + os.path.join(
-    basedir, "registration.db"
-)
+app.config["SQLALCHEMY_DATABASE_URI"] = os.getenv('DATABASE_URL', "postgresql://postgres:password@localhost/registration")
 app.config["SQLALCHEMY_TRACK_MODIFICATIONS"] = False
 app.config["UPLOAD_FOLDER"] = os.path.join(basedir, "uploads")
+app.config["CACHE_TYPE"] = "redis"
+app.config["CACHE_REDIS_URL"] = os.getenv("REDIS_URL", "redis://localhost:6379/0")
 
 # Ensure the upload folder exists
 os.makedirs(app.config["UPLOAD_FOLDER"], exist_ok=True)
 
 db = SQLAlchemy(app)
-client = OpenAI()
+client = OpenAI(api_key=os.getenv('OPENAI_API_KEY'))  # Ensure the API key is set in the environment
+cache = Cache(app)
 
+# Set up rate limiting
+limiter = Limiter(
+    get_remote_address,
+    app=app,
+    storage_uri=os.getenv("REDIS_URL_RATE_LIMITS","redis://localhost:6379/1"), # Use Redis for storing rate limits
+    storage_options={"socket_connect_timeout": 30},
+    strategy="fixed-window",
+    default_limits=["200 per day", "50 per hour"]
+)
 
 class Registration(db.Model):
     id = db.Column(db.Integer, primary_key=True)
@@ -34,13 +51,23 @@ class Registration(db.Model):
     phoneNumber = db.Column(db.String(10), nullable=False)
     emailId = db.Column(db.String(120), nullable=False)
 
-
 def encode_image(image_path):
     with open(image_path, "rb") as image_file:
         return base64.b64encode(image_file.read()).decode("utf-8")
 
+def generate_cache_key(image_path, prompt):
+    with open(image_path, "rb") as image_file:
+        image_data = image_file.read()
+    image_hash = hashlib.sha256(image_data).hexdigest()
+    prompt_hash = hashlib.sha256(prompt.encode()).hexdigest()
+    return f"{image_hash}_{prompt_hash}"
 
 def extract_info(image_path, prompt):
+    cache_key = generate_cache_key(image_path, prompt)
+    cached_response = cache.get(cache_key)
+    if cached_response:
+        return cached_response
+    
     response = client.chat.completions.create(
         model="gpt-4o-mini",
         response_format={"type": "json_object"},
@@ -62,8 +89,9 @@ def extract_info(image_path, prompt):
             }
         ],
     )
-    return json.loads(response.choices[0].message.content)
-
+    response_content = json.loads(response.choices[0].message.content)
+    cache.set(cache_key, response_content, timeout=3600)  # Cache for 1 hour
+    return response_content
 
 def process_output(json_response):
     main_data = []
@@ -79,7 +107,6 @@ def process_output(json_response):
 
     return main_data, subject_data
 
-
 def generate_pdf(output_data):
     buffer = BytesIO()
     doc = SimpleDocTemplate(
@@ -88,11 +115,9 @@ def generate_pdf(output_data):
     elements = []
     styles = getSampleStyleSheet()
 
-    # Update existing styles
     styles["Title"].fontSize = 16
     styles["Title"].alignment = 1  # Center alignment
 
-    # Add new styles
     styles.add(
         ParagraphStyle(
             name="Subtitle", parent=styles["Heading2"], fontSize=14, alignment=1
@@ -104,7 +129,6 @@ def generate_pdf(output_data):
         )
     )
 
-    # Title
     elements.append(Paragraph("Universal College Application", styles["Title"]))
     elements.append(Spacer(1, 0.25 * inch))
     elements.append(Paragraph("First-Year Admissions Application", styles["Subtitle"]))
@@ -123,7 +147,6 @@ def generate_pdf(output_data):
             if "error" in data:
                 elements.append(Paragraph(f"Error: {data['error']}", styles["Normal"]))
             else:
-                # Main data table
                 main_data = [
                     [
                         Paragraph(str(item["Field"]), styles["TableHeader"]),
@@ -149,7 +172,6 @@ def generate_pdf(output_data):
                 elements.append(main_table)
                 elements.append(Spacer(1, 0.1 * inch))
 
-                # Subject data table (if available)
                 if data["subjects"]:
                     elements.append(Paragraph("Subject Scores", styles["Heading3"]))
                     elements.append(Spacer(1, 0.1 * inch))
@@ -194,18 +216,16 @@ def generate_pdf(output_data):
     buffer.seek(0)
     return buffer
 
-
 @app.route("/")
 def homepage():
     return render_template("index.html")
-
 
 @app.route("/register")
 def register():
     return render_template("register.html")
 
-
 @app.route("/digiform", methods=["GET", "POST"])
+@limiter.limit("5 per minute")
 def digiform():
     if request.method == "POST":
         fullName = request.form["fullName"]
@@ -222,8 +242,8 @@ def digiform():
         return redirect(url_for("upload_form"))
     return render_template("register.html")
 
-
 @app.route("/upload", methods=["GET", "POST"])
+@limiter.limit("5 per minute")
 def upload_form():
     if request.method == "POST":
         output_data = []
@@ -259,8 +279,8 @@ def upload_form():
         return render_template("form.html", pdf_data=pdf_base64)
     return render_template("form.html")
 
-
 @app.route("/download_pdf", methods=["POST"])
+@limiter.limit("10 per minute")
 def download_pdf():
     pdf_base64 = request.form.get("pdf_data")
     if pdf_base64:
@@ -273,9 +293,9 @@ def download_pdf():
         return response
     return "PDF not found", 404
 
-
 with app.app_context():
     db.create_all()
 
 if __name__ == "__main__":
-    app.run(debug=True)
+    print(os.getenv("PORT"))
+    app.run(host="0.0.0.0", port=5001, debug=False)
