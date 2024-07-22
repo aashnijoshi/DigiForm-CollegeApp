@@ -3,7 +3,7 @@ services:
   web:
     build: .
     container_name: flask-app
-    command: sh -c "chmod +x /wait-for-it.sh && /wait-for-it.sh db:5432 -- python app.py"
+    command: sh -c "chmod +x /wait-for-it.sh && /wait-for-it.sh db:5432 -- gunicorn -w 4 -b 0.0.0.0:${PORT} app:app"
     ports:
       - "${PORT}:${PORT}"
     environment:
@@ -22,8 +22,8 @@ services:
     container_name: postgres-db
     restart: always
     environment:
-      POSTGRES_USER: postgres
-      POSTGRES_PASSWORD: password
+      POSTGRES_USER: digiform
+      POSTGRES_PASSWORD: digiform
       POSTGRES_DB: registration
     volumes:
       - postgres-data:/var/lib/postgresql/data
