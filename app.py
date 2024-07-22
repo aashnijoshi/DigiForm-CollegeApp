@@ -42,7 +42,7 @@ def encode_image(image_path):
 
 def extract_info(image_path, prompt):
     response = client.chat.completions.create(
-        model="gpt-4o",
+        model="gpt-4o-mini",
         response_format={"type": "json_object"},
         messages=[
             {
@@ -228,9 +228,9 @@ def upload_form():
     if request.method == "POST":
         output_data = []
         prompts = [
-            "Extract the following information: Full Name, Father's Name, Date of Birth, Address, Aadhar Number, Gender.",
-            'Extract the following information: Seat Number, Year of Passing, Subject Names with score, Total Marks obtained, Percentage. Return each subject score separately. Return "Invalid Image " if the image is not a valid 10th marksheet.',
-            'Extract the following information: Stream, Seat Number, Year of Passing, Subject Names with score, Total Marks obtained, Percentage. Return each subject score separately. Return "Invalid Image " if the image is not a valid 12th marksheet.',
+            'Extract the following information from the Aadhar card image: Full Name, Fathers Name, Date of Birth, Address, Aadhar Number, Gender. If any field is not clearly visible or cannot be extracted, return "Not Available" for that field. If the image is not a valid Aadhar card, return "Invalid Image: Not an Aadhar card".',
+            'Extract the following information from the 10th standard marksheet image: Seat Number, Year of Passing, Subject Names with scores, Total Marks Obtained, Percentage. Return each subject score separately. If any field is not clearly visible or cannot be extracted, return "Not Available" for that field. If the image is not a valid 10th standard marksheet, return "Invalid Image: Not a 10th standard marksheet".',
+            'Extract the following information from the 12th standard marksheet image: Stream, Seat Number, Year of Passing, Subject Names with scores, Total Marks Obtained, Percentage. Return each subject score separately. If any field is not clearly visible or cannot be extracted, return "Not Available" for that field. If the image is not a valid 12th standard marksheet, return "Invalid Image: Not a 12th standard marksheet".',
         ]
 
         for i, field in enumerate(
@@ -243,6 +243,7 @@ def upload_form():
                 file.save(filepath)
                 try:
                     json_response = extract_info(filepath, prompts[i])
+                    print(json_response)
                     main_data, subject_data = process_output(json_response)
                     output_data.append({"main": main_data, "subjects": subject_data})
                 except Exception as e:
